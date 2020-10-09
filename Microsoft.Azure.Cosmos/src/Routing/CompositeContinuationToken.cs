@@ -16,6 +16,7 @@ namespace Microsoft.Azure.Cosmos.Routing
         {
             public const string Token = "token";
             public const string Range = "range";
+            public const string MergeContext = "mergeContext";
 
             public const string Min = "min";
             public const string Max = "max";
@@ -31,6 +32,13 @@ namespace Microsoft.Azure.Cosmos.Routing
         [JsonProperty(PropertyNames.Range)]
         [JsonConverter(typeof(RangeJsonConverter))]
         public Documents.Routing.Range<string> Range
+        {
+            get;
+            set;
+        }
+
+        [JsonProperty(PropertyNames.MergeContext, NullValueHandling = NullValueHandling.Ignore)]
+        public CompositeContinuationToken MergeContext
         {
             get;
             set;

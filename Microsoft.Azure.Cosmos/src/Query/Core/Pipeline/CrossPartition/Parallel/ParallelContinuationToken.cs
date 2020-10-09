@@ -20,6 +20,7 @@ namespace Microsoft.Azure.Cosmos.Query.Core.Pipeline.CrossPartition.Parallel
         {
             public const string Token = "token";
             public const string Range = "range";
+            public const string MergeContext = "mergeContext";
 
             public const string Min = "min";
             public const string Max = "max";

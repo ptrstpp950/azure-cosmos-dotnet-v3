@@ -12,6 +12,7 @@ namespace Microsoft.Azure.Cosmos
     using System.Threading.Tasks;
     using Microsoft.Azure.Cosmos.Query.Core.Monads;
     using Microsoft.Azure.Cosmos.Routing;
+    using Microsoft.Azure.Documents.Routing;
     using Newtonsoft.Json;
 
     /// <summary>
@@ -23,6 +24,7 @@ namespace Microsoft.Azure.Cosmos
     {
         private static readonly Documents.ShouldRetryResult Retry = Documents.ShouldRetryResult.RetryAfter(TimeSpan.Zero);
         private static readonly Documents.ShouldRetryResult NoRetry = Documents.ShouldRetryResult.NoRetry();
+        private static readonly string EtagDelimiter = "\"";
 
         public Queue<CompositeContinuationToken> CompositeContinuationTokens { get; }
         public CompositeContinuationToken CurrentToken { get; private set; }
@@ -184,11 +186,15 @@ namespace Microsoft.Azure.Cosmos
                 return FeedRangeCompositeContinuation.NoRetry;
             }
 
-            Routing.PartitionKeyRangeCache partitionKeyRangeCache = await containerCore.ClientContext.DocumentClient.GetPartitionKeyRangeCacheAsync();
-            IReadOnlyList<Documents.PartitionKeyRange> resolvedRanges = await this.TryGetOverlappingRangesAsync(partitionKeyRangeCache, this.CurrentToken.Range.Min, this.CurrentToken.Range.Max, forceRefresh: true);
-            if (resolvedRanges.Count > 0)
+            (IReadOnlyList<Documents.PartitionKeyRange> resolvedRanges, PartitionOperation partitionOperation) = await this.ReadNewRangesAsync(containerCore);
+            if (partitionOperation == PartitionOperation.Split)
             {
                 this.CreateChildRanges(resolvedRanges);
+            }
+
+            if (partitionOperation == PartitionOperation.Merge)
+            {
+                this.MergeParentRanges(resolvedRanges);
             }
 
             return FeedRangeCompositeContinuation.Retry;
@@ -207,6 +213,8 @@ namespace Microsoft.Azure.Cosmos
                 return false;
             }
         }
+
+        public override void Accept(IFeedRangeContinuationVisitor visitor) => visitor.Visit(this);
 
         private static bool TryParseAsCompositeContinuationToken(
             string providedContinuation,
@@ -252,14 +260,62 @@ namespace Microsoft.Azure.Cosmos
             };
         }
 
+        private static bool IsCompositeContinuationTokenDone(CompositeContinuationToken compositeContinuationToken)
+        {
+            if (compositeContinuationToken.Token == null)
+            {
+                return true;
+            }
+
+            if (compositeContinuationToken.MergeContext != null
+                && compositeContinuationToken.Token.Equals(compositeContinuationToken.MergeContext.Token, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool IsRangeContained(
+            string minInclusiveParentRange,
+            string maxExclusiveParentRange,
+            string minInclusiveChildRange,
+            string maxExclusiveChildRange)
+        {
+            if (minInclusiveParentRange.Equals(minInclusiveChildRange, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (maxExclusiveParentRange.Equals(maxExclusiveChildRange, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            PartitionKeyHash hashMaxExclusiveParentRange = PartitionKeyHash.Parse(maxExclusiveParentRange);
+            PartitionKeyHash hashMinInclusiveChildRange = PartitionKeyHash.Parse(minInclusiveChildRange);
+
+            if (hashMinInclusiveChildRange > hashMaxExclusiveParentRange)
+            {
+                return false;
+            }
+
+            PartitionKeyHash hashMaxExclusiveChildRange = PartitionKeyHash.Parse(maxExclusiveChildRange);
+            PartitionKeyHash hashMinInclusiveParentRange = PartitionKeyHash.Parse(minInclusiveParentRange);
+
+            if (hashMinInclusiveParentRange > hashMaxExclusiveChildRange)
+            {
+                return false;
+            }
+
+            return true;
+        }
+
         private void MoveToNextToken()
         {
             CompositeContinuationToken recentToken = this.CompositeContinuationTokens.Dequeue();
-            if (recentToken.Token != null)
+            if (!FeedRangeCompositeContinuation.IsCompositeContinuationTokenDone(recentToken))
             {
-                // Normal ReadFeed can signal termination by CT null, not NotModified
-                // Change Feed never lands here, as it always provides a CT
-                // Consider current range done, if this FeedToken contains multiple ranges due to splits, all of them need to be considered done
                 this.CompositeContinuationTokens.Enqueue(recentToken);
             }
 
@@ -304,6 +360,56 @@ namespace Microsoft.Azure.Cosmos
             }
         }
 
+        private void MergeParentRanges(IReadOnlyList<Documents.PartitionKeyRange> mergeResult)
+        {
+            if (mergeResult == null) throw new ArgumentNullException(nameof(mergeResult));
+
+            // Merges yield a single range as result
+            Documents.PartitionKeyRange mergedPartitionKeyRange = mergeResult.First();
+            Range<string> mergedRange = mergedPartitionKeyRange.ToRange();
+
+            string maxTokenAsString = string.Empty; // Makes comparisson afterwards easier
+            int maxToken = 0; // Current contract is continuation is always an int
+
+            // Find the merged tokens and calculate the max
+            List<CompositeContinuationToken> mergedTokens = new List<CompositeContinuationToken>();
+            foreach (CompositeContinuationToken compositeContinuationToken in this.CompositeContinuationTokens)
+            {
+                if (FeedRangeCompositeContinuation.IsRangeContained(
+                    mergedPartitionKeyRange.MinInclusive,
+                    mergedPartitionKeyRange.MaxExclusive,
+                    compositeContinuationToken.Range.Min,
+                    compositeContinuationToken.Range.Max))
+                {
+                    mergedTokens.Add(compositeContinuationToken);
+
+                    if (compositeContinuationToken.Token != null
+                        && int.TryParse(compositeContinuationToken.Token.Replace(FeedRangeCompositeContinuation.EtagDelimiter, string.Empty), out int parsedToken)
+                        && parsedToken > maxToken)
+                    {
+                        maxToken = parsedToken;
+                        maxTokenAsString = compositeContinuationToken.Token;
+                    }
+                }
+            }
+
+            foreach (CompositeContinuationToken mergedCompositeContinuationToken in mergedTokens)
+            {
+                if (maxTokenAsString.Equals(mergedCompositeContinuationToken.Token, StringComparison.OrdinalIgnoreCase))
+                {
+                    // it's the highest one, so use it to continue after the merge
+                    mergedCompositeContinuationToken.Range = mergedRange;
+                }
+                else
+                {
+                    // Other ranges will only read the changes that were in the previously merged partition
+                    // So we add the merge context
+                    mergedCompositeContinuationToken.MergeContext = FeedRangeCompositeContinuation.CreateCompositeContinuationTokenForRange(mergedCompositeContinuationToken.Range.Min, mergedCompositeContinuationToken.Range.Max, maxTokenAsString);
+                    mergedCompositeContinuationToken.Range = mergedRange;
+                }
+            }
+        }
+
         private async Task<IReadOnlyList<Documents.PartitionKeyRange>> TryGetOverlappingRangesAsync(
             Routing.PartitionKeyRangeCache partitionKeyRangeCache,
             string min,
@@ -327,6 +433,20 @@ namespace Microsoft.Azure.Cosmos
             return keyRanges;
         }
 
-        public override void Accept(IFeedRangeContinuationVisitor visitor) => visitor.Visit(this);
+        private async Task<(IReadOnlyList<Documents.PartitionKeyRange>, PartitionOperation)> ReadNewRangesAsync(ContainerInternal containerCore)
+        {
+            Routing.PartitionKeyRangeCache partitionKeyRangeCache = await containerCore.ClientContext.DocumentClient.GetPartitionKeyRangeCacheAsync();
+            IReadOnlyList<Documents.PartitionKeyRange> resolvedRanges = await this.TryGetOverlappingRangesAsync(partitionKeyRangeCache, this.CurrentToken.Range.Min, this.CurrentToken.Range.Max, forceRefresh: true);
+
+            PartitionOperation partitionOperation = resolvedRanges.Count > 1 ? PartitionOperation.Split : PartitionOperation.Merge;
+
+            return (resolvedRanges, partitionOperation);
+        }
+
+        private enum PartitionOperation
+        {
+            Split,
+            Merge
+        }
     }
 }
