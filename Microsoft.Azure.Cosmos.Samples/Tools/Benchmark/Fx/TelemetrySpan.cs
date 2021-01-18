@@ -11,8 +11,8 @@ namespace CosmosBenchmark
 
     internal struct TelemetrySpan : IDisposable
     {
-        private static double[] latencyHistogram;
-        private static int latencyIndex = -1;
+        private static double[] _latencyHistogram;
+        private static int _latencyIndex = -1;
 
         internal static bool IncludePercentile = false;
 
@@ -24,7 +24,7 @@ namespace CosmosBenchmark
             Func<OperationResult> lazyOperationResult,
             bool disableTelemetry)
         {
-            if (disableTelemetry || !TelemetrySpan.IncludePercentile)
+            if (disableTelemetry || !IncludePercentile)
             {
                 return NoOpDisposable.Instance;
             }
@@ -44,7 +44,7 @@ namespace CosmosBenchmark
             {
                 OperationResult operationResult = this.lazyOperationResult();
 
-                if (TelemetrySpan.IncludePercentile)
+                if (IncludePercentile)
                 {
                     RecordLatency(this.stopwatch.Elapsed.TotalMilliseconds);
                 }
@@ -59,24 +59,24 @@ namespace CosmosBenchmark
 
         private static void RecordLatency(double elapsedMilliseoncds)
         {
-            int index = Interlocked.Increment(ref latencyIndex);
-            latencyHistogram[index] = elapsedMilliseoncds;
+            int index = Interlocked.Increment(ref _latencyIndex);
+            _latencyHistogram[index] = elapsedMilliseoncds;
         }
 
         internal static void ResetLatencyHistogram(int totalNumberOfIterations)
         {
-            latencyHistogram = new double[totalNumberOfIterations];
-            latencyIndex = -1;
+            _latencyHistogram = new double[totalNumberOfIterations];
+            _latencyIndex = -1;
         }
 
         internal static double? GetLatencyPercentile(int percentile)
         {
-            if (latencyHistogram == null)
+            if (_latencyHistogram == null)
             {
                 return null;
             }
 
-            return MathNet.Numerics.Statistics.Statistics.Percentile(latencyHistogram.Take(latencyIndex + 1), percentile);
+            return MathNet.Numerics.Statistics.Statistics.Percentile(_latencyHistogram.Take(_latencyIndex + 1), percentile);
         }
 
         private class NoOpDisposable : IDisposable

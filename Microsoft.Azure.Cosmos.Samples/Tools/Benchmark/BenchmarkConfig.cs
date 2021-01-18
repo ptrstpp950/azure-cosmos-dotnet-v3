@@ -9,6 +9,7 @@ namespace CosmosBenchmark
     using System.Linq;
     using System.Runtime;
     using CommandLine;
+    using CommandLine.Text;
     using Microsoft.Azure.Cosmos;
     using Microsoft.Azure.Documents.Client;
     using Newtonsoft.Json;
@@ -63,11 +64,12 @@ namespace CosmosBenchmark
         [Option(Required = false, HelpText = "Min thread pool size")]
         public int MinThreadPoolSize { get; set; } = 100;
 
-        [Option(Required = false, HelpText = "Write the task execution failure to console. Useful for debugging failures")]
+        [Option(Required = false,
+            HelpText = "Write the task execution failure to console. Useful for debugging failures")]
         public bool TraceFailures { get; set; }
 
         [Option(Required = false, HelpText = "Publish run results")]
-        public bool PublishResults  { get; set; }
+        public bool PublishResults { get; set; }
 
         [Option(Required = false, HelpText = "Run ID, only for publish")]
         internal string RunId { get; set; }
@@ -98,7 +100,7 @@ namespace CosmosBenchmark
         public string ResultsKey { get; set; }
 
         [Option(Required = false, HelpText = "Database to publish results to")]
-        public string ResultsDatabase { get; set; } 
+        public string ResultsDatabase { get; set; }
 
         [Option(Required = false, HelpText = "Container to publish results to")]
         public string ResultsContainer { get; set; } = "runsummary";
@@ -133,9 +135,10 @@ namespace CosmosBenchmark
         {
             BenchmarkConfig options = null;
             Parser parser = new Parser((settings) => settings.CaseSensitive = false);
-            parser.ParseArguments<BenchmarkConfig>(args)
-                .WithParsed<BenchmarkConfig>(e => options = e)
-                .WithNotParsed<BenchmarkConfig>(e => BenchmarkConfig.HandleParseError(e));
+            ParserResult<BenchmarkConfig> parseResult = parser.ParseArguments<BenchmarkConfig>(args);
+            parseResult.WithParsed<BenchmarkConfig>(e => options = e);
+            parseResult.WithNotParsed(errs => ThrowOnParseError(parseResult, errs));
+
 
             if (options.PublishResults)
             {
@@ -145,7 +148,8 @@ namespace CosmosBenchmark
                     || string.IsNullOrWhiteSpace(options.CommitDate)
                     || string.IsNullOrWhiteSpace(options.CommitTime))
                 {
-                    throw new ArgumentException($"Missing either {nameof(options.ResultsContainer)} {nameof(options.ResultsPartitionKeyValue)} {nameof(options.CommitId)} {nameof(options.CommitDate)} {nameof(options.CommitTime)}");
+                    throw new ArgumentException(
+                        $"Missing either {nameof(options.ResultsContainer)} {nameof(options.ResultsPartitionKeyValue)} {nameof(options.CommitId)} {nameof(options.CommitDate)} {nameof(options.CommitTime)}");
                 }
             }
 
@@ -156,19 +160,19 @@ namespace CosmosBenchmark
         {
             CosmosClientOptions clientOptions = new CosmosClientOptions()
             {
-                ApplicationName = BenchmarkConfig.UserAgentSuffix,
-                MaxRetryAttemptsOnRateLimitedRequests = 0
+                ApplicationName = UserAgentSuffix, MaxRetryAttemptsOnRateLimitedRequests = 0
             };
 
             if (!string.IsNullOrWhiteSpace(this.ConsistencyLevel))
             {
-                clientOptions.ConsistencyLevel = (Microsoft.Azure.Cosmos.ConsistencyLevel)Enum.Parse(typeof(Microsoft.Azure.Cosmos.ConsistencyLevel), this.ConsistencyLevel, ignoreCase: true);
+                clientOptions.ConsistencyLevel = (ConsistencyLevel)Enum.Parse(
+                    typeof(ConsistencyLevel), this.ConsistencyLevel, ignoreCase: true);
             }
 
             return new CosmosClient(
-                        this.EndPoint,
-                        accountKey,
-                        clientOptions);
+                this.EndPoint,
+                accountKey,
+                clientOptions);
         }
 
         internal DocumentClient CreateDocumentClient(string accountKey)
@@ -176,22 +180,20 @@ namespace CosmosBenchmark
             Microsoft.Azure.Documents.ConsistencyLevel? consistencyLevel = null;
             if (!string.IsNullOrWhiteSpace(this.ConsistencyLevel))
             {
-                consistencyLevel = (Microsoft.Azure.Documents.ConsistencyLevel)Enum.Parse(typeof(Microsoft.Azure.Documents.ConsistencyLevel), this.ConsistencyLevel, ignoreCase: true);
+                consistencyLevel = (Microsoft.Azure.Documents.ConsistencyLevel)Enum.Parse(
+                    typeof(Microsoft.Azure.Documents.ConsistencyLevel), this.ConsistencyLevel, ignoreCase: true);
             }
 
             return new DocumentClient(new Uri(this.EndPoint),
-                            accountKey,
-                            new ConnectionPolicy()
-                            {
-                                ConnectionMode = Microsoft.Azure.Documents.Client.ConnectionMode.Direct,
-                                ConnectionProtocol = Protocol.Tcp,
-                                UserAgentSuffix = BenchmarkConfig.UserAgentSuffix,
-                                RetryOptions = new RetryOptions()
-                                {
-                                    MaxRetryAttemptsOnThrottledRequests = 0
-                                }
-                            },
-                            desiredConsistencyLevel: consistencyLevel);
+                accountKey,
+                new ConnectionPolicy()
+                {
+                    ConnectionMode = Microsoft.Azure.Documents.Client.ConnectionMode.Direct,
+                    ConnectionProtocol = Protocol.Tcp,
+                    UserAgentSuffix = UserAgentSuffix,
+                    RetryOptions = new RetryOptions() {MaxRetryAttemptsOnThrottledRequests = 0}
+                },
+                desiredConsistencyLevel: consistencyLevel);
         }
 
         private static void HandleParseError(IEnumerable<Error> errors)
@@ -205,6 +207,17 @@ namespace CosmosBenchmark
             }
 
             Environment.Exit(errors.Count());
+        }
+
+        private static void ThrowOnParseError<T>(ParserResult<T> result, IEnumerable<Error> errors)
+        {
+            SentenceBuilder builder = SentenceBuilder.Create();
+            IEnumerable<string> errorMessages = HelpText.RenderParsingErrorsTextAsLines(result, builder.FormatError, builder.FormatMutuallyExclusiveSetErrors, 1);
+
+            List<ArgumentException> excList = errorMessages.Select(msg => new ArgumentException(msg)).ToList();
+
+            if (excList.Any())
+                throw new AggregateException(excList);
         }
     }
 }

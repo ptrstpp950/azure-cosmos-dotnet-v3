@@ -19,7 +19,7 @@ namespace CosmosBenchmark
         public static void TeePrint(string format, params object[] arg)
         {
             string payload = string.Format(format, arg);
-            Utility.TeeTraceInformation(payload);
+            TeeTraceInformation(payload);
         }
     }
 }

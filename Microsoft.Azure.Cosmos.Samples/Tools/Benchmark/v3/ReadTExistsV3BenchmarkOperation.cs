@@ -52,8 +52,8 @@ namespace CosmosBenchmark
 
             return new OperationResult()
             {
-                DatabseName = databsaeName,
-                ContainerName = containerName,
+                DatabseName = this.databsaeName,
+                ContainerName = this.containerName,
                 RuCharges = itemResponse.Headers.RequestCharge,
                 CosmosDiagnostics = itemResponse.Diagnostics,
                 LazyDiagnostics = () => itemResponse.Diagnostics.ToString(),
@@ -75,7 +75,7 @@ namespace CosmosBenchmark
                 {
                     ResponseMessage itemResponse = await this.container.CreateItemStreamAsync(
                             inputStream,
-                            new Microsoft.Azure.Cosmos.PartitionKey(this.nextExecutionItemPartitionKey));
+                            new PartitionKey(this.nextExecutionItemPartitionKey));
 
                     System.Buffers.ArrayPool<byte>.Shared.Return(inputStream.GetBuffer());
 

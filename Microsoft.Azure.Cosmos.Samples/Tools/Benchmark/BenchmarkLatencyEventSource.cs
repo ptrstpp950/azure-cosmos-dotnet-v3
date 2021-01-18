@@ -38,7 +38,7 @@ namespace CosmosBenchmark
             int durationInMs,
             Func<string> lazyDiagnostics)
         {
-            if (durationInMs > BenchmarkLatencyEventSource.TraceLatencyThreshold
+            if (durationInMs > TraceLatencyThreshold
                 && this.IsEnabled())
             {
                 this.WriteEvent(1, dbName, containerName, durationInMs, lazyDiagnostics());

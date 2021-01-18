@@ -14,6 +14,8 @@ namespace CosmosBenchmark
     using System.Reflection;
     using System.Threading;
     using System.Threading.Tasks;
+    using CommandLine;
+    using CommandLine.Text;
     using Microsoft.Azure.Cosmos;
     using Microsoft.Azure.Documents.Client;
     using Newtonsoft.Json.Linq;
@@ -32,8 +34,8 @@ namespace CosmosBenchmark
             try
             {
                 BenchmarkConfig config = BenchmarkConfig.From(args);
-                await Program.AddAzureInfoToRunSummary();
-                
+                await AddAzureInfoToRunSummary();
+
                 ThreadPool.SetMinThreads(config.MinThreadPoolSize, config.MinThreadPoolSize);
 
                 if (config.EnableLatencyPercentiles)
@@ -58,6 +60,8 @@ namespace CosmosBenchmark
                 }
             }
         }
+
+
 
         private static async Task AddAzureInfoToRunSummary()
         {
@@ -90,13 +94,13 @@ namespace CosmosBenchmark
         {
             using (CosmosClient cosmosClient = config.CreateCosmosClient(config.Key))
             {
-                Microsoft.Azure.Cosmos.Database database = cosmosClient.GetDatabase(config.Database);
+                Database database = cosmosClient.GetDatabase(config.Database);
                 if (config.CleanupOnStart)
                 {
                     await database.DeleteStreamAsync();
                 }
 
-                ContainerResponse containerResponse = await Program.CreatePartitionedContainerAsync(config, cosmosClient);
+                ContainerResponse containerResponse = await CreatePartitionedContainerAsync(config, cosmosClient);
                 Container container = containerResponse;
 
                 int? currentContainerThroughput = await container.ReadThroughputAsync();
@@ -131,7 +135,7 @@ namespace CosmosBenchmark
                     if (config.DisableCoreSdkLogging)
                     {
                         // Do it after client initialization (HACK)
-                        Program.ClearCoreSdkListeners();
+                        ClearCoreSdkListeners();
                     }
 
                     IExecutionStrategy execution = IExecutionStrategy.StartNew(config, benchmarkOperationFactory);
@@ -173,8 +177,8 @@ namespace CosmosBenchmark
                 {
                     runSummary.Diagnostics = CosmosDiagnosticsLogger.GetDiagnostics();
                     await this.PublishResults(
-                        config, 
-                        runSummary, 
+                        config,
+                        runSummary,
                         cosmosClient);
                 }
 
@@ -183,8 +187,8 @@ namespace CosmosBenchmark
         }
 
         private async Task PublishResults(
-            BenchmarkConfig config, 
-            RunSummary runSummary, 
+            BenchmarkConfig config,
+            RunSummary runSummary,
             CosmosClient benchmarkClient)
         {
             if (string.IsNullOrEmpty(config.ResultsEndpoint))
@@ -211,7 +215,7 @@ namespace CosmosBenchmark
         {
             string sampleItem = File.ReadAllText(config.ItemTemplateFile);
 
-            Type[] availableBenchmarks = Program.AvailableBenchmarks();
+            Type[] availableBenchmarks = AvailableBenchmarks();
             IEnumerable<Type> res = availableBenchmarks
                 .Where(e => e.Name.Equals(config.WorkloadType, StringComparison.OrdinalIgnoreCase) || e.Name.Equals(config.WorkloadType + "BenchmarkOperation", StringComparison.OrdinalIgnoreCase));
 
@@ -272,7 +276,7 @@ namespace CosmosBenchmark
         /// <returns>The created container.</returns>
         private static async Task<ContainerResponse> CreatePartitionedContainerAsync(BenchmarkConfig options, CosmosClient cosmosClient)
         {
-            Microsoft.Azure.Cosmos.Database database = await cosmosClient.CreateDatabaseIfNotExistsAsync(options.Database);
+            Database database = await cosmosClient.CreateDatabaseIfNotExistsAsync(options.Database);
 
             Container container = database.GetContainer(options.Container);
 
@@ -281,7 +285,7 @@ namespace CosmosBenchmark
                 return await container.ReadContainerAsync();
             }
             catch(CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
-            { 
+            {
                 // Show user cost of running this test
                 double estimatedCostPerMonth = 0.06 * options.Throughput;
                 double estimatedCostPerHour = estimatedCostPerMonth / (24 * 30);

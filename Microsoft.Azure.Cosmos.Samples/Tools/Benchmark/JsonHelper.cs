@@ -11,7 +11,7 @@ namespace CosmosBenchmark
     internal static class JsonHelper
     {
         private static readonly Encoding DefaultEncoding = new UTF8Encoding(false, true);
-        private static readonly JsonSerializer serializer = JsonSerializer.Create(new JsonSerializerSettings() {
+        private static readonly JsonSerializer Serializer = JsonSerializer.Create(new JsonSerializerSettings() {
                     NullValueHandling = NullValueHandling.Ignore,
                     Formatting = Formatting.Indented,
                 });
@@ -19,7 +19,7 @@ namespace CosmosBenchmark
 
         public static string ToString<T>(T input)
         {
-            using (MemoryStream stream = JsonHelper.ToStream(input))
+            using (MemoryStream stream = ToStream(input))
             using (StreamReader sr = new StreamReader(stream))
             {
                 return sr.ReadToEnd();
@@ -33,18 +33,18 @@ namespace CosmosBenchmark
 
         public static MemoryStream ToStream<T>(T input)
         {
-            byte[] blob = System.Buffers.ArrayPool<byte>.Shared.Rent(JsonHelper.DefaultCapacity);
-            MemoryStream memStreamPayload = new MemoryStream(blob, 0, JsonHelper.DefaultCapacity, writable: true, publiclyVisible: true);
+            byte[] blob = System.Buffers.ArrayPool<byte>.Shared.Rent(DefaultCapacity);
+            MemoryStream memStreamPayload = new MemoryStream(blob, 0, DefaultCapacity, writable: true, publiclyVisible: true);
             memStreamPayload.SetLength(0);
             memStreamPayload.Position = 0;
             using (StreamWriter streamWriter = new StreamWriter(memStreamPayload,
-                encoding: JsonHelper.DefaultEncoding,
-                bufferSize: JsonHelper.DefaultCapacity,
+                encoding: DefaultEncoding,
+                bufferSize: DefaultCapacity,
                 leaveOpen: true))
             {
                 using (JsonWriter writer = new JsonTextWriter(streamWriter))
                 {
-                    JsonHelper.serializer.Serialize(writer, input);
+                    Serializer.Serialize(writer, input);
                     writer.Flush();
                     streamWriter.Flush();
                 }

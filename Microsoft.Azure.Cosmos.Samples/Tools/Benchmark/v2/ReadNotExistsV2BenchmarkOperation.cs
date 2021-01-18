@@ -58,8 +58,8 @@ namespace CosmosBenchmark
 
                 return new OperationResult()
                 {
-                    DatabseName = databsaeName,
-                    ContainerName = containerName,
+                    DatabseName = this.databsaeName,
+                    ContainerName = this.containerName,
                     RuCharges = dce.RequestCharge,
                     LazyDiagnostics = () => dce.ToString(),
                 };

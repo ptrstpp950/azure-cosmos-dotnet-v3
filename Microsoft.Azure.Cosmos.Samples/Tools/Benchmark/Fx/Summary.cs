@@ -11,23 +11,23 @@ namespace CosmosBenchmark
     {
         private const int MsPerSecond = 1000;
 
-        public long successfulOpsCount;
-        public long failedOpsCount;
-        public double ruCharges;
-        public double elapsedMs;
+        public long SuccessfulOpsCount;
+        public long FailedOpsCount;
+        public double RuCharges;
+        public double ElapsedMs;
 
         public double Rups()
         {
             return Math.Round(
-                    Math.Min(this.ruCharges / this.elapsedMs * Summary.MsPerSecond, this.ruCharges),
+                    Math.Min((this.RuCharges / this.ElapsedMs) * MsPerSecond, this.RuCharges),
                     2);
         }
 
         public double Rps()
         {
-            long total = this.successfulOpsCount + this.failedOpsCount;
+            long total = this.SuccessfulOpsCount + this.FailedOpsCount;
             return Math.Round(
-                    Math.Min(total / this.elapsedMs * Summary.MsPerSecond, total),
+                    Math.Min((total / this.ElapsedMs) * MsPerSecond, total),
                     2);
         }
 
@@ -35,8 +35,8 @@ namespace CosmosBenchmark
         {
             Utility.TeePrint("Stats, total: {0,5}   success: {1,5}   fail: {2,3}   RPs: {3,5}   RUps: {4,5}",
                 globalTotal,
-                this.successfulOpsCount,
-                this.failedOpsCount,
+                this.SuccessfulOpsCount,
+                this.FailedOpsCount,
                 this.Rps(),
                 this.Rups());
         }
@@ -45,10 +45,10 @@ namespace CosmosBenchmark
         {
             return new Summary()
             {
-                successfulOpsCount = arg1.successfulOpsCount + arg2.successfulOpsCount,
-                failedOpsCount = arg1.failedOpsCount + arg2.failedOpsCount,
-                ruCharges = arg1.ruCharges + arg2.ruCharges,
-                elapsedMs = arg1.elapsedMs + arg2.elapsedMs,
+                SuccessfulOpsCount = arg1.SuccessfulOpsCount + arg2.SuccessfulOpsCount,
+                FailedOpsCount = arg1.FailedOpsCount + arg2.FailedOpsCount,
+                RuCharges = arg1.RuCharges + arg2.RuCharges,
+                ElapsedMs = arg1.ElapsedMs + arg2.ElapsedMs,
             };
         }
 
@@ -56,10 +56,10 @@ namespace CosmosBenchmark
         {
             return new Summary()
             {
-                successfulOpsCount = arg1.successfulOpsCount - arg2.successfulOpsCount,
-                failedOpsCount = arg1.failedOpsCount - arg2.failedOpsCount,
-                ruCharges = arg1.ruCharges - arg2.ruCharges,
-                elapsedMs = arg1.elapsedMs - arg2.elapsedMs,
+                SuccessfulOpsCount = arg1.SuccessfulOpsCount - arg2.SuccessfulOpsCount,
+                FailedOpsCount = arg1.FailedOpsCount - arg2.FailedOpsCount,
+                RuCharges = arg1.RuCharges - arg2.RuCharges,
+                ElapsedMs = arg1.ElapsedMs - arg2.ElapsedMs,
             };
         }
     }

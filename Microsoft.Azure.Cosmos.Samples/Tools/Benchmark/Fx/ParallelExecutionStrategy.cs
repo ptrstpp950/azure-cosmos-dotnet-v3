@@ -80,21 +80,21 @@ namespace CosmosBenchmark
                     IExecutor executor = executors[i];
                     Summary executorSummary = new Summary()
                     {
-                        successfulOpsCount = executor.SuccessOperationCount,
-                        failedOpsCount = executor.FailedOperationCount,
-                        ruCharges = executor.TotalRuCharges,
+                        SuccessfulOpsCount = executor.SuccessOperationCount,
+                        FailedOpsCount = executor.FailedOperationCount,
+                        RuCharges = executor.TotalRuCharges,
                     };
 
                     currentTotalSummary += executorSummary;
                 }
 
                 // In-theory summary might be lower than real as its not transactional on time
-                currentTotalSummary.elapsedMs = watch.Elapsed.TotalMilliseconds;
+                currentTotalSummary.ElapsedMs = watch.Elapsed.TotalMilliseconds;
 
                 Summary diff = currentTotalSummary - lastSummary;
                 lastSummary = currentTotalSummary;
 
-                diff.Print(currentTotalSummary.failedOpsCount + currentTotalSummary.successfulOpsCount);
+                diff.Print(currentTotalSummary.FailedOpsCount + currentTotalSummary.SuccessfulOpsCount);
                 perLoopCounters.Add((int)diff.Rps());
 
                 await Task.Delay(TimeSpan.FromSeconds(outputLoopDelayInSeconds));
@@ -106,7 +106,7 @@ namespace CosmosBenchmark
                 Console.WriteLine();
                 Console.WriteLine("Summary:");
                 Console.WriteLine("--------------------------------------------------------------------- ");
-                lastSummary.Print(lastSummary.failedOpsCount + lastSummary.successfulOpsCount);
+                lastSummary.Print(lastSummary.FailedOpsCount + lastSummary.SuccessfulOpsCount);
 
                 // Skip first 5 and last 5 counters as outliers
                 IEnumerable<int> exceptFirst5 = perLoopCounters.Skip(5);

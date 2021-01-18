@@ -50,8 +50,8 @@ namespace CosmosBenchmark
             double ruCharges = feedResponse.RequestCharge;
             return new OperationResult()
             {
-                DatabseName = databsaeName,
-                ContainerName = containerName,
+                DatabseName = this.databsaeName,
+                ContainerName = this.containerName,
                 RuCharges = ruCharges,
                 LazyDiagnostics = () => feedResponse.QueryMetrics.ToString(),
             };

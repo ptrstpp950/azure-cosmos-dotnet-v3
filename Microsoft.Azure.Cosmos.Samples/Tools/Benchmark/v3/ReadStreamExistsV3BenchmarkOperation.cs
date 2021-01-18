@@ -52,8 +52,8 @@ namespace CosmosBenchmark
 
                 return new OperationResult()
                 {
-                    DatabseName = databsaeName,
-                    ContainerName = containerName,
+                    DatabseName = this.databsaeName,
+                    ContainerName = this.containerName,
                     RuCharges = itemResponse.Headers.RequestCharge,
                     CosmosDiagnostics = itemResponse.Diagnostics,
                     LazyDiagnostics = () => itemResponse.Diagnostics.ToString(),
