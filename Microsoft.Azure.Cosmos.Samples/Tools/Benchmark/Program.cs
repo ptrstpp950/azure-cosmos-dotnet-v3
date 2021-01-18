@@ -107,10 +107,16 @@ namespace CosmosBenchmark
 
                 if (!currentContainerThroughput.HasValue)
                 {
-                    // Container throughput is not configured. It is shared database throughput
-                    ThroughputResponse throughputResponse = await database.ReadThroughputAsync(requestOptions: null);
-                    throw new InvalidOperationException($"Using database {config.Database} with {throughputResponse.Resource.Throughput} RU/s. " +
-                        $"Container {config.Container} must have a configured throughput.");
+                    currentContainerThroughput = await database.ReadThroughputAsync();
+                    if (!currentContainerThroughput.HasValue)
+                    {
+                        // Container throughput is not configured. It is shared database throughput
+                        ThroughputResponse throughputResponse =
+                            await database.ReadThroughputAsync(requestOptions: null);
+                        throw new InvalidOperationException(
+                            $"Using database {config.Database} with {throughputResponse.Resource.Throughput} RU/s. " +
+                            $"Container {config.Container} must have a configured throughput.");
+                    }
                 }
 
                 Console.WriteLine($"Using container {config.Container} with {currentContainerThroughput} RU/s");
