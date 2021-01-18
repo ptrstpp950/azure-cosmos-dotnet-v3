@@ -37,4 +37,4 @@ properties:
   volumes: 
   - name: 'cosmosdbsdk'
     gitRepo:
-      repository: 'https://github.com/Azure/azure-cosmos-dotnet-v3'
+      repository: 'https://github.com/ptrstpp950/azure-cosmos-dotnet-v3'
