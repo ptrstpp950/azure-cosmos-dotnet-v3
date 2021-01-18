@@ -76,6 +76,14 @@ namespace CosmosBenchmark
                 //A random quantity from 1 to 10
                 .RuleFor(o => o.Quantity, f => f.Random.Number(1, 10));
 
+            Faker<Address> testAddress = new Faker<Address>()
+                .StrictMode(true)
+                .RuleFor(x => x.City, f => f.Address.City())
+                .RuleFor(x => x.State, f => f.Address.State())
+                .RuleFor(x => x.Street, f => f.Address.StreetName())
+                .RuleFor(x => x.CountryCode, f => f.Address.CountryCode())
+                .RuleFor(x => x.ZipCode, f => f.Address.ZipCode());
+
             Faker<User> testUsers = new Faker<User>()
                 //Optional: Call for objects that have complex initialization
                 .RuleFor(u => u.Id, f => f.IndexGlobal)
@@ -91,6 +99,11 @@ namespace CosmosBenchmark
                 .RuleFor(u => u.CartId, f => Guid.NewGuid())
                 //Compound property with context, use the first/last name properties
                 .RuleFor(u => u.FullName, (f, u) => u.FirstName + " " + u.LastName)
+                .RuleFor(u=>u.Address, f=> new AddressWrapper
+                {
+                    Type = f.PickRandomParam("home", "company"),
+                    Address = testAddress.Generate()
+                } )
                 //And composability of a complex collection.
                 .RuleFor(u => u.Orders, f => testOrders.Generate(3).ToList());
 
@@ -121,6 +134,22 @@ namespace CosmosBenchmark
             public string SSN { get; set; }
             public Name.Gender Gender { get; set; }
             public List<Order> Orders { get; set; }
+
+            public AddressWrapper Address { get; set; }
+        }
+
+        public class AddressWrapper
+        {
+            public string Type { get; set; }
+            public Address Address { get; set; }
+        }
+        public class Address
+        {
+            public string City { get; set; }
+            public string State { get; set; }
+            public string ZipCode { get; set; }
+            public string Street { get; set; }
+            public string CountryCode { get; set; }
         }
     }
 }
